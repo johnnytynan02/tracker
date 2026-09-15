@@ -39,6 +39,7 @@ export const ALL_KEYS = [
   "weight-log",
   "niggle-log",
   "niggle-regions",
+  "niggle-config",
   "test-metrics",
   "test-entries",
 ];

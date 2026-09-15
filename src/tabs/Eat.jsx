@@ -1,11 +1,10 @@
 import React, { useState, lazy, Suspense } from "react";
-import { Trash2, X, Pencil, Search, ScanLine, Camera, Plus, Check, UtensilsCrossed } from "lucide-react";
+import { Trash2, X, Pencil, Search, ScanLine, Camera, Plus, Check, UtensilsCrossed, ChevronLeft, ChevronRight } from "lucide-react";
 import { useStored } from "../lib/useStored";
-import { C, MONO, Card, SectionTitle, Empty, Btn, NumInput, TextInput, ErrorNote, Hint, MacroRow, uid, today } from "../lib/ui";
+import { C, MONO, Card, SectionTitle, Empty, Btn, NumInput, TextInput, ErrorNote, Hint, MacroRow, uid, today, fmtDate } from "../lib/ui";
 import { lookupBarcode, searchFoods, scale } from "../lib/food";
+import { MEAL_SLOTS, slotForNow, addDays } from "../lib/schema";
 
-// ZXing is ~400kB. Load it only when the camera is actually opened, so the
-// app boots fast and people who never scan never download it.
 const Scanner = lazy(() => import("../lib/Scanner"));
 
 const ADD_MODES = [
@@ -14,17 +13,17 @@ const ADD_MODES = [
   { id: "manual", label: "Manual", icon: Pencil },
 ];
 
+const ZERO = { calories: 0, protein: 0, carbs: 0, fat: 0 };
 const sumMacros = (list) =>
-  list.reduce(
-    (a, m) => ({ calories: a.calories + m.calories, protein: a.protein + m.protein, carbs: a.carbs + m.carbs, fat: a.fat + m.fat }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 }
-  );
+  list.reduce((a, m) => ({ calories: a.calories + (+m.calories || 0), protein: a.protein + (+m.protein || 0), carbs: a.carbs + (+m.carbs || 0), fat: a.fat + (+m.fat || 0) }), ZERO);
 
 export default function Eat() {
   const [library, setLibrary] = useStored("food-library", []);
   const [meals, setMeals] = useStored("meals", []);
   const [log, setLog] = useStored("food-log", []);
 
+  const [date, setDate] = useState(today());
+  const [slot, setSlot] = useState(slotForNow());
   const [adding, setAdding] = useState(false);
   const [mode, setMode] = useState("scan");
   const [scanning, setScanning] = useState(false);
@@ -37,61 +36,50 @@ export default function Eat() {
   const [editing, setEditing] = useState(null);
   const [mealDraft, setMealDraft] = useState(null);
 
-  const todayLog = log.filter((l) => l.date === today());
-  const totals = sumMacros(todayLog.map((l) => ({ calories: +l.calories || 0, protein: +l.protein || 0, carbs: +l.carbs || 0, fat: +l.fat || 0 })));
+  const dayLog = log.filter((l) => l.date === date);
+  const dayTotals = sumMacros(dayLog);
+
+  // Rolling 7 days ending on the selected date. Averaged over days that were
+  // actually logged — dividing by 7 when you logged 3 days is just wrong.
+  const weekDates = Array.from({ length: 7 }, (_, i) => addDays(date, -i));
+  const loggedDays = weekDates.filter((d) => log.some((l) => l.date === d));
+  const weekAvg = loggedDays.length
+    ? (() => {
+        const t = sumMacros(log.filter((l) => weekDates.includes(l.date)));
+        const n = loggedDays.length;
+        return { calories: t.calories / n, protein: t.protein / n, carbs: t.carbs / n, fat: t.fat / n };
+      })()
+    : null;
 
   const pushLog = (name, m) =>
-    setLog([...log, { id: uid(), date: today(), name, calories: +m.calories || 0, protein: +m.protein || 0, carbs: +m.carbs || 0, fat: +m.fat || 0 }]);
+    setLog([...log, { id: uid(), date, slot, name, calories: +m.calories || 0, protein: +m.protein || 0, carbs: +m.carbs || 0, fat: +m.fat || 0 }]);
 
   const logFood = (item) => pushLog(`${item.name} (${item.grams}g)`, scale(item.per100, item.grams));
-
-  // A meal logs as ONE entry. Its components live on the meal, so the Today
-  // list stays readable instead of exploding into six lines per meal.
   const mealMacros = (meal) => sumMacros(meal.items.map((it) => scale(it.per100, it.grams)));
   const logMeal = (meal) => pushLog(meal.name, mealMacros(meal));
 
-  const reset = () => {
-    setResults(null);
-    setPicked(null);
-    setErr("");
-  };
-
-  const closeAdd = () => {
-    setAdding(false);
-    reset();
-    setQ("");
-    setCode("");
-  };
+  const reset = () => { setResults(null); setPicked(null); setErr(""); };
+  const closeAdd = () => { setAdding(false); reset(); setQ(""); setCode(""); };
 
   const handleBarcode = async (c) => {
-    setScanning(false);
-    setBusy(true);
-    setErr("");
-    setResults(null);
+    setScanning(false); setBusy(true); setErr(""); setResults(null);
     try {
       const r = await lookupBarcode(c);
-      if (r.notFound) setErr(`Barcode ${c} isn't in Open Food Facts yet. Add it by hand below — and consider contributing it via the Open Food Facts app so it's there next time.`);
+      if (r.notFound) setErr(`Barcode ${c} isn't in Open Food Facts yet. Add it by hand below — and consider contributing it via the Open Food Facts app.`);
       else if (r.noNutrition) setErr("That product is in the database but has no nutrition data. Enter it off the packet below.");
       else setPicked({ name: r.product.name, per100: r.product.per100, grams: String(r.product.servingG || 100), servingLabel: r.product.servingLabel, source: "Open Food Facts" });
-    } catch (e) {
-      setErr(e.message || "Lookup failed.");
-    }
+    } catch (e) { setErr(e.message || "Lookup failed."); }
     setBusy(false);
   };
 
   const runSearch = async () => {
     if (!q.trim()) return;
-    setBusy(true);
-    setErr("");
-    setResults(null);
-    setPicked(null);
+    setBusy(true); setErr(""); setResults(null); setPicked(null);
     try {
       const found = await searchFoods(q);
       setResults(found);
       if (found.length === 0) setErr("Nothing usable came back. Try fewer words, or scan the barcode.");
-    } catch (e) {
-      setErr(e.message || "Search failed.");
-    }
+    } catch (e) { setErr(e.message || "Search failed."); }
     setBusy(false);
   };
 
@@ -122,35 +110,22 @@ export default function Eat() {
       <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontWeight: 600, fontSize: 15 }}>Meal</span>
-          <Btn variant="ghost" onClick={() => setMealDraft(null)}>
-            <X size={15} />
-            Cancel
-          </Btn>
+          <Btn variant="ghost" onClick={() => setMealDraft(null)}><X size={15} />Cancel</Btn>
         </div>
-
-        <TextInput placeholder="Name — e.g. Breakfast, Chicken and rice" value={mealDraft.name} onChange={(e) => setMealDraft({ ...mealDraft, name: e.target.value })} />
-
-        <Card>
-          <MacroRow macros={m} size={19} />
-        </Card>
-
+        <TextInput placeholder="Name — e.g. Usual breakfast" value={mealDraft.name} onChange={(e) => setMealDraft({ ...mealDraft, name: e.target.value })} />
+        <Card><MacroRow macros={m} size={19} /></Card>
         <Card>
           <SectionTitle>What's in it</SectionTitle>
           {mealDraft.items.length === 0 && <div style={{ color: C.faint, fontSize: 13, marginBottom: 8 }}>Nothing yet — pick from your foods below.</div>}
           {mealDraft.items.map((it, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}>
               <span style={{ fontSize: 13.5, flex: 1, minWidth: 0 }}>{it.name}</span>
-              <NumInput
-                value={it.grams}
-                style={{ width: 72 }}
-                onChange={(e) => setMealDraft({ ...mealDraft, items: mealDraft.items.map((x, j) => (j === i ? { ...x, grams: Number(e.target.value) || 0 } : x)) })}
-              />
+              <NumInput value={it.grams} style={{ width: 72 }} onChange={(e) => setMealDraft({ ...mealDraft, items: mealDraft.items.map((x, j) => (j === i ? { ...x, grams: Number(e.target.value) || 0 } : x)) })} />
               <span style={{ fontSize: 12, color: C.dim }}>g</span>
               <Trash2 size={15} color={C.faint} style={{ cursor: "pointer" }} onClick={() => setMealDraft({ ...mealDraft, items: mealDraft.items.filter((_, j) => j !== i) })} />
             </div>
           ))}
         </Card>
-
         <Card>
           <SectionTitle>Add from your foods</SectionTitle>
           {library.length === 0 ? (
@@ -158,44 +133,63 @@ export default function Eat() {
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {library.map((f) => (
-                <div
-                  key={f.id}
-                  onClick={() => setMealDraft({ ...mealDraft, items: [...mealDraft.items, { name: f.name, per100: f.per100, grams: f.grams }] })}
-                  style={{ padding: "7px 11px", borderRadius: 18, fontSize: 12.5, cursor: "pointer", background: C.input, color: "#C7CBD1", border: `1px solid ${C.line}` }}
-                >
-                  <Plus size={11} style={{ verticalAlign: -1, marginRight: 3 }} />
-                  {f.name}
+                <div key={f.id} onClick={() => setMealDraft({ ...mealDraft, items: [...mealDraft.items, { name: f.name, per100: f.per100, grams: f.grams }] })} style={{ padding: "7px 11px", borderRadius: 18, fontSize: 12.5, cursor: "pointer", background: C.input, color: "#C7CBD1", border: `1px solid ${C.line}` }}>
+                  <Plus size={11} style={{ verticalAlign: -1, marginRight: 3 }} />{f.name}
                 </div>
               ))}
             </div>
           )}
         </Card>
-
         <div style={{ display: "flex", gap: 8 }}>
-          <Btn onClick={save} disabled={!mealDraft.name.trim() || mealDraft.items.length === 0} style={{ flex: 1, padding: 12 }}>
-            Save meal
-          </Btn>
+          <Btn onClick={save} disabled={!mealDraft.name.trim() || mealDraft.items.length === 0} style={{ flex: 1, padding: 12 }}>Save meal</Btn>
           {meals.some((x) => x.id === mealDraft.id) && (
-            <Btn
-              variant="danger"
-              onClick={() => {
-                setMeals(meals.filter((x) => x.id !== mealDraft.id));
-                setMealDraft(null);
-              }}
-            >
-              Delete
-            </Btn>
+            <Btn variant="danger" onClick={() => { setMeals(meals.filter((x) => x.id !== mealDraft.id)); setMealDraft(null); }}>Delete</Btn>
           )}
         </div>
       </div>
     );
   }
 
+  const isToday = date === today();
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <Card>
-        <MacroRow macros={totals} size={19} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+      {/* ---------- day picker ---------- */}
+      <Card style={{ padding: "10px 12px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <ChevronLeft size={22} color={C.dim} style={{ cursor: "pointer" }} onClick={() => setDate(addDays(date, -1))} />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontWeight: 600, fontSize: 15 }}>{isToday ? "Today" : fmtDate(date)}</div>
+            <input type="date" value={date} max={today()} onChange={(e) => e.target.value && setDate(e.target.value)} style={{ background: "transparent", border: "none", color: C.faint, fontSize: 11.5, padding: 0, textAlign: "center" }} />
+          </div>
+          <ChevronRight size={22} color={isToday ? C.line : C.dim} style={{ cursor: isToday ? "default" : "pointer" }} onClick={() => !isToday && setDate(addDays(date, 1))} />
+        </div>
       </Card>
+
+      <Card>
+        <MacroRow macros={dayTotals} size={19} />
+      </Card>
+
+      {weekAvg && (
+        <Card style={{ padding: "11px 14px" }}>
+          <SectionTitle style={{ marginBottom: 7 }}>
+            7-day average · {loggedDays.length} day{loggedDays.length === 1 ? "" : "s"} logged
+          </SectionTitle>
+          <MacroRow macros={weekAvg} size={15} />
+        </Card>
+      )}
+
+      {/* ---------- meal slot ---------- */}
+      <div>
+        <SectionTitle>Logging to</SectionTitle>
+        <div style={{ display: "flex", gap: 6 }}>
+          {MEAL_SLOTS.map((s) => (
+            <div key={s} onClick={() => setSlot(s)} style={{ flex: 1, textAlign: "center", padding: "9px 4px", borderRadius: 8, fontSize: 12.5, cursor: "pointer", background: slot === s ? C.accent : C.input, color: slot === s ? "#0E1210" : C.dim, border: `1px solid ${slot === s ? C.accent : C.line}`, fontWeight: slot === s ? 600 : 400 }}>
+              {s}
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div>
         <SectionTitle>Meals — tap to log the whole thing</SectionTitle>
@@ -209,9 +203,7 @@ export default function Eat() {
                   <div style={{ fontSize: 11.5, color: C.dim, fontFamily: MONO, marginTop: 3 }}>
                     {Math.round(m.calories)} kcal · P{Math.round(m.protein)} C{Math.round(m.carbs)} F{Math.round(m.fat)}
                   </div>
-                  <div style={{ fontSize: 11.5, color: C.faint, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {meal.items.map((i) => i.name).join(" · ")}
-                  </div>
+                  <div style={{ fontSize: 11.5, color: C.faint, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meal.items.map((i) => i.name).join(" · ")}</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
                   <Pencil size={15} color={C.faint} style={{ cursor: "pointer" }} onClick={() => setMealDraft({ ...meal, items: [...meal.items] })} />
@@ -223,8 +215,7 @@ export default function Eat() {
             );
           })}
           <Btn variant="ghost" onClick={() => setMealDraft({ id: uid(), name: "", items: [] })} style={{ padding: 11 }}>
-            <UtensilsCrossed size={15} />
-            New meal
+            <UtensilsCrossed size={15} />New meal
           </Btn>
         </div>
       </div>
@@ -240,29 +231,11 @@ export default function Eat() {
               return (
                 <div key={m.id} onClick={() => logFood(m)} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: 12, cursor: "pointer", position: "relative" }}>
                   <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 4, paddingRight: 32, lineHeight: 1.3 }}>{m.name}</div>
-                  <div style={{ fontSize: 11.5, color: C.dim, fontFamily: MONO }}>
-                    {m.grams}g · {Math.round(macros.calories)} kcal
-                  </div>
-                  <div style={{ fontSize: 11.5, color: C.faint, fontFamily: MONO, marginTop: 2 }}>
-                    P{Math.round(macros.protein)} C{Math.round(macros.carbs)} F{Math.round(macros.fat)}
-                  </div>
+                  <div style={{ fontSize: 11.5, color: C.dim, fontFamily: MONO }}>{m.grams}g · {Math.round(macros.calories)} kcal</div>
+                  <div style={{ fontSize: 11.5, color: C.faint, fontFamily: MONO, marginTop: 2 }}>P{Math.round(macros.protein)} C{Math.round(macros.carbs)} F{Math.round(macros.fat)}</div>
                   <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 8 }}>
-                    <Pencil
-                      size={12}
-                      color={C.faint}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditing({ ...m, grams: String(m.grams) });
-                      }}
-                    />
-                    <X
-                      size={13}
-                      color={C.faint}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setLibrary(library.filter((x) => x.id !== m.id));
-                      }}
-                    />
+                    <Pencil size={12} color={C.faint} onClick={(e) => { e.stopPropagation(); setEditing({ ...m, grams: String(m.grams) }); }} />
+                    <X size={13} color={C.faint} onClick={(e) => { e.stopPropagation(); setLibrary(library.filter((x) => x.id !== m.id)); }} />
                   </div>
                 </div>
               );
@@ -279,66 +252,39 @@ export default function Eat() {
             <span style={{ color: C.dim, fontSize: 13 }}>grams · {Math.round(scale(editing.per100, Number(editing.grams) || 0).calories)} kcal</span>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <Btn
-              onClick={() => {
-                setLibrary(library.map((x) => (x.id === editing.id ? { ...x, grams: Number(editing.grams) || 0 } : x)));
-                setEditing(null);
-              }}
-            >
-              Save
-            </Btn>
-            <Btn variant="ghost" onClick={() => setEditing(null)}>
-              Cancel
-            </Btn>
+            <Btn onClick={() => { setLibrary(library.map((x) => (x.id === editing.id ? { ...x, grams: Number(editing.grams) || 0 } : x))); setEditing(null); }}>Save</Btn>
+            <Btn variant="ghost" onClick={() => setEditing(null)}>Cancel</Btn>
           </div>
         </Card>
       )}
 
       {!adding ? (
-        <Btn variant="ghost" onClick={() => setAdding(true)} style={{ padding: 12 }}>
-          <Plus size={16} />
-          Add a new food
-        </Btn>
+        <Btn variant="ghost" onClick={() => setAdding(true)} style={{ padding: 12 }}><Plus size={16} />Add a new food</Btn>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", gap: 6 }}>
             {ADD_MODES.map((m) => {
               const Icon = m.icon;
               return (
-                <Btn
-                  key={m.id}
-                  variant={mode === m.id ? "primary" : "ghost"}
-                  onClick={() => {
-                    setMode(m.id);
-                    reset();
-                  }}
-                  style={{ flex: 1, padding: "10px 4px", fontSize: 12.5, gap: 5 }}
-                >
-                  <Icon size={14} />
-                  {m.label}
+                <Btn key={m.id} variant={mode === m.id ? "primary" : "ghost"} onClick={() => { setMode(m.id); reset(); }} style={{ flex: 1, padding: "10px 4px", fontSize: 12.5, gap: 5 }}>
+                  <Icon size={14} />{m.label}
                 </Btn>
               );
             })}
-            <Btn variant="ghost" onClick={closeAdd} style={{ padding: "10px 12px" }}>
-              <X size={15} />
-            </Btn>
+            <Btn variant="ghost" onClick={closeAdd} style={{ padding: "10px 12px" }}><X size={15} /></Btn>
           </div>
 
           {mode === "scan" && !picked && (
             <Card>
               <SectionTitle>Scan a barcode</SectionTitle>
               <Btn onClick={() => setScanning(true)} style={{ width: "100%", padding: 13 }} disabled={busy}>
-                <Camera size={17} />
-                {busy ? "Looking up…" : "Open camera"}
+                <Camera size={17} />{busy ? "Looking up…" : "Open camera"}
               </Btn>
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                 <TextInput inputMode="numeric" placeholder="…or type the number" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && code.trim() && handleBarcode(code.trim())} />
-                <Btn variant="ghost" onClick={() => code.trim() && handleBarcode(code.trim())} disabled={busy}>
-                  <Search size={15} />
-                </Btn>
+                <Btn variant="ghost" onClick={() => code.trim() && handleBarcode(code.trim())} disabled={busy}><Search size={15} /></Btn>
               </div>
               <ErrorNote>{err}</ErrorNote>
-              <Hint>Needs camera permission, and only works over HTTPS.</Hint>
             </Card>
           )}
 
@@ -347,23 +293,16 @@ export default function Eat() {
               <SectionTitle>Search Open Food Facts (UK)</SectionTitle>
               <div style={{ display: "flex", gap: 8 }}>
                 <TextInput placeholder="e.g. Tesco chicken thigh" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && runSearch()} />
-                <Btn onClick={runSearch} disabled={busy}>
-                  {busy ? "…" : <Search size={15} />}
-                </Btn>
+                <Btn onClick={runSearch} disabled={busy}>{busy ? "…" : <Search size={15} />}</Btn>
               </div>
               <ErrorNote>{err}</ErrorNote>
               {results && results.length > 0 && (
                 <div style={{ marginTop: 12 }}>
                   {results.map((r) => (
-                    <div
-                      key={r.code}
-                      onClick={() => setPicked({ name: r.name, per100: r.per100, grams: String(r.servingG || 100), servingLabel: r.servingLabel, source: "Open Food Facts" })}
-                      style={{ padding: "10px 0", borderTop: `1px solid ${C.line}`, cursor: "pointer" }}
-                    >
+                    <div key={r.code} onClick={() => setPicked({ name: r.name, per100: r.per100, grams: String(r.servingG || 100), servingLabel: r.servingLabel, source: "Open Food Facts" })} style={{ padding: "10px 0", borderTop: `1px solid ${C.line}`, cursor: "pointer" }}>
                       <div style={{ fontSize: 13.5, fontWeight: 500, lineHeight: 1.35 }}>{r.name}</div>
                       <div style={{ fontSize: 11.5, color: C.dim, fontFamily: MONO, marginTop: 3 }}>
-                        per 100g: {r.per100.calories} kcal · P{r.per100.protein} C{r.per100.carbs} F{r.per100.fat}
-                        {r.quantity ? ` · ${r.quantity}` : ""}
+                        per 100g: {r.per100.calories} kcal · P{r.per100.protein} C{r.per100.carbs} F{r.per100.fat}{r.quantity ? ` · ${r.quantity}` : ""}
                       </div>
                     </div>
                   ))}
@@ -374,14 +313,12 @@ export default function Eat() {
           )}
 
           {mode === "manual" && !picked && (
-            <ManualEntry
-              onDone={(item, save) => {
-                const grams = Number(item.grams) || 100;
-                pushLog(`${item.name} (${grams}g)`, scale(item.per100, grams));
-                if (save) setLibrary([...library, { id: uid(), name: item.name, per100: item.per100, grams, source: "Manual" }]);
-                closeAdd();
-              }}
-            />
+            <ManualEntry onDone={(item, save) => {
+              const grams = Number(item.grams) || 100;
+              pushLog(`${item.name} (${grams}g)`, scale(item.per100, grams));
+              if (save) setLibrary([...library, { id: uid(), name: item.name, per100: item.per100, grams, source: "Manual" }]);
+              closeAdd();
+            }} />
           )}
 
           {picked && (
@@ -396,33 +333,41 @@ export default function Eat() {
                 <MacroRow macros={scale(picked.per100, Number(picked.grams) || 0)} />
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                <Btn onClick={() => commitPicked(true)} style={{ flex: 1 }}>
-                  Log &amp; save
-                </Btn>
-                <Btn variant="ghost" onClick={() => commitPicked(false)}>
-                  Log once
-                </Btn>
-                <Btn variant="ghost" onClick={() => setPicked(null)}>
-                  <X size={15} />
-                </Btn>
+                <Btn onClick={() => commitPicked(true)} style={{ flex: 1 }}>Log &amp; save</Btn>
+                <Btn variant="ghost" onClick={() => commitPicked(false)}>Log once</Btn>
+                <Btn variant="ghost" onClick={() => setPicked(null)}><X size={15} /></Btn>
               </div>
             </Card>
           )}
         </div>
       )}
 
+      {/* ---------- the day's log, grouped by slot ---------- */}
       <div>
-        <SectionTitle>Today</SectionTitle>
-        {todayLog.length === 0 && <Empty text="Nothing logged today." />}
-        {[...todayLog].reverse().map((l) => (
-          <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${C.line}`, gap: 10 }}>
-            <span style={{ fontSize: 13.5, minWidth: 0 }}>{l.name}</span>
-            <span style={{ display: "flex", gap: 10, alignItems: "center", flexShrink: 0 }}>
-              <span style={{ fontSize: 12, color: C.dim, fontFamily: MONO }}>{Math.round(l.calories)} kcal</span>
-              <Trash2 size={14} color={C.faint} style={{ cursor: "pointer" }} onClick={() => setLog(log.filter((x) => x.id !== l.id))} />
-            </span>
-          </div>
-        ))}
+        <SectionTitle>{isToday ? "Today" : fmtDate(date)}</SectionTitle>
+        {dayLog.length === 0 && <Empty text="Nothing logged on this day." />}
+        {MEAL_SLOTS.map((s) => {
+          const items = dayLog.filter((l) => (l.slot || "Snack") === s);
+          if (items.length === 0) return null;
+          const t = sumMacros(items);
+          return (
+            <div key={s} style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                <span style={{ fontSize: 12.5, color: C.accent, fontWeight: 600 }}>{s}</span>
+                <span style={{ fontSize: 11.5, color: C.faint, fontFamily: MONO }}>{Math.round(t.calories)} kcal</span>
+              </div>
+              {items.map((l) => (
+                <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.line}`, gap: 10 }}>
+                  <span style={{ fontSize: 13.5, minWidth: 0 }}>{l.name}</span>
+                  <span style={{ display: "flex", gap: 10, alignItems: "center", flexShrink: 0 }}>
+                    <span style={{ fontSize: 12, color: C.dim, fontFamily: MONO }}>{Math.round(l.calories)} kcal</span>
+                    <Trash2 size={14} color={C.faint} style={{ cursor: "pointer" }} onClick={() => setLog(log.filter((x) => x.id !== l.id))} />
+                  </span>
+                </div>
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -439,12 +384,7 @@ function ManualEntry({ onDone }) {
       <SectionTitle>Type it off the label — per 100g</SectionTitle>
       <TextInput placeholder="Name — e.g. Chicken thigh, butcher" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, marginTop: 9 }}>
-        {[
-          ["calories", "kcal"],
-          ["protein", "protein"],
-          ["carbs", "carbs"],
-          ["fat", "fat"],
-        ].map(([k, l]) => (
+        {[["calories", "kcal"], ["protein", "protein"], ["carbs", "carbs"], ["fat", "fat"]].map(([k, l]) => (
           <div key={k}>
             <div style={{ fontSize: 10.5, color: C.faint, marginBottom: 4 }}>{l}</div>
             <NumInput value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
@@ -456,12 +396,8 @@ function ManualEntry({ onDone }) {
         <span style={{ fontSize: 13, color: C.dim }}>grams you normally eat</span>
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 13 }}>
-        <Btn disabled={!f.name.trim()} onClick={() => pack(true)} style={{ flex: 1 }}>
-          Log &amp; save
-        </Btn>
-        <Btn variant="ghost" disabled={!f.name.trim()} onClick={() => pack(false)}>
-          Log once
-        </Btn>
+        <Btn disabled={!f.name.trim()} onClick={() => pack(true)} style={{ flex: 1 }}>Log &amp; save</Btn>
+        <Btn variant="ghost" disabled={!f.name.trim()} onClick={() => pack(false)}>Log once</Btn>
       </div>
     </Card>
   );

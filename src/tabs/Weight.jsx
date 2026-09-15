@@ -2,19 +2,23 @@ import React, { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 import { useStored } from "../lib/useStored";
-import { C, MONO, Card, SectionTitle, Empty, Btn, NumInput, fmtDate, today } from "../lib/ui";
+import { C, MONO, Card, SectionTitle, Empty, Btn, NumInput, inputStyle, fmtDate, today } from "../lib/ui";
 
 export default function Weight() {
   const [entries, setEntries] = useStored("weight-log", []);
   const [val, setVal] = useState("");
+  const [entryDate, setEntryDate] = useState(today());
   const [range, setRange] = useState(90);
 
   const sorted = [...entries].sort((a, b) => (a.date > b.date ? 1 : -1));
 
+  // One reading per day: logging the same date again replaces it rather than
+  // creating a duplicate the chart would have to guess between.
   const add = () => {
-    if (!val) return;
-    setEntries([...entries.filter((e) => e.date !== today()), { date: today(), weight: Number(val) }]);
+    if (!val || !entryDate) return;
+    setEntries([...entries.filter((e) => e.date !== entryDate), { date: entryDate, weight: Number(val) }]);
     setVal("");
+    setEntryDate(today());
   };
 
   // Daily weight is noisy enough that the raw line alone invites reading
@@ -55,9 +59,28 @@ export default function Weight() {
     <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
       <Card>
         <div style={{ display: "flex", gap: 8 }}>
-          <NumInput placeholder="Weight today (kg)" value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+          <NumInput placeholder="Weight (kg)" value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
           <Btn onClick={add}>Log</Btn>
         </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+          <input
+            type="date"
+            value={entryDate}
+            max={today()}
+            onChange={(e) => e.target.value && setEntryDate(e.target.value)}
+            style={{ ...inputStyle, width: "auto", flex: 1, fontSize: 14, colorScheme: "dark" }}
+          />
+          {entryDate !== today() && (
+            <Btn variant="ghost" onClick={() => setEntryDate(today())} style={{ fontSize: 12.5, padding: "9px 11px" }}>
+              Today
+            </Btn>
+          )}
+        </div>
+        {entryDate !== today() && (
+          <div style={{ fontSize: 11.5, color: C.dim, marginTop: 8 }}>
+            Backfilling {fmtDate(entryDate)}{entries.some((e) => e.date === entryDate) ? " — this will replace the existing reading" : ""}.
+          </div>
+        )}
       </Card>
 
       {latest && (
