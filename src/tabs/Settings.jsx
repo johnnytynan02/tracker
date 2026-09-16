@@ -1,10 +1,13 @@
 import React, { useRef, useState } from "react";
-import { Download, Upload, Table } from "lucide-react";
+import { Download, Upload, Table, LogOut } from "lucide-react";
 import { C, MONO, Card, SectionTitle, Btn, Hint, ErrorNote } from "../lib/ui";
 import { exportAll, importAll } from "../lib/storage";
 import { tableToCSV, tableSummary, download } from "../lib/csv";
+import { signOut, isConfigured } from "../lib/supabase";
+import { useData } from "../lib/DataProvider";
 
-export default function Settings() {
+export default function Settings({ session }) {
+  const { status } = useData();
   const fileRef = useRef(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -32,9 +35,32 @@ export default function Settings() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
       <Card>
+        <SectionTitle>Account</SectionTitle>
+        {session ? (
+          <>
+            <div style={{ fontSize: 13.5, color: C.text }}>{session.user.email}</div>
+            <div style={{ fontSize: 12, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>
+              {status === "offline"
+                ? "Can't reach the server right now. Changes are saved on this device and will go up next time you're online."
+                : "Synced to your account. Sign in on any device to pick up where you left off."}
+            </div>
+            <Btn variant="ghost" onClick={() => signOut()} style={{ marginTop: 13 }}>
+              <LogOut size={15} />Sign out
+            </Btn>
+          </>
+        ) : (
+          <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
+            {isConfigured
+              ? "Not signed in — data is on this device only. Reload the page to sign in with Google and sync it."
+              : "Cloud sync isn't configured on this deployment. Data stays on this device."}
+          </div>
+        )}
+      </Card>
+
+      <Card>
         <SectionTitle>Backup</SectionTitle>
         <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.6, marginBottom: 14 }}>
-          Everything lives in this browser on this device. Nothing is sent anywhere except food lookups. Private by default — and lost if you clear your browser data or switch phones. Export every few weeks.
+          A full snapshot you can restore from. Worth taking occasionally even with sync on — it protects against mistakes on your side, which sync will faithfully replicate.
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <Btn onClick={doExportJSON} style={{ flex: 1 }}>
@@ -47,7 +73,7 @@ export default function Settings() {
         <input ref={fileRef} type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) doImport(f); e.target.value = ""; }} />
         {msg && <div style={{ color: C.accent, fontSize: 12.5, marginTop: 10 }}>{msg}</div>}
         <ErrorNote>{err}</ErrorNote>
-        <Hint>JSON is the full backup — restore puts everything back exactly. Use this one for moving devices.</Hint>
+        <Hint>Restoring overwrites whatever is currently stored, section by section.</Hint>
       </Card>
 
       <Card>

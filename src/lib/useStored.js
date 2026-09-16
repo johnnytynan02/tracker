@@ -1,15 +1,4 @@
-import { useState } from "react";
-import { loadKey, saveKey } from "./storage";
-
-// Synchronous read on first render — localStorage is fast enough that there
-// is no reason to make the UI wait behind a loading state.
-export function useStored(key, fallback) {
-  const [data, setData] = useState(() => loadKey(key, fallback));
-
-  const save = (next) => {
-    setData(next);
-    saveKey(key, next);
-  };
-
-  return [data, save];
-}
+// Kept as its own module so every tab's import path stayed the same when
+// storage moved from localStorage to Supabase. The implementation now lives
+// in DataProvider, which loads everything once and writes through both.
+export { useStored } from "./DataProvider";
