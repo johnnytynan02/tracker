@@ -1,20 +1,33 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Trash2 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 import { useStored } from "../lib/useStored";
-import { C, MONO, Card, SectionTitle, Empty, Btn, NumInput, fmtDate, today } from "../lib/ui";
+import { C, MONO, Card, SectionTitle, Empty, Btn, NumInput, inputStyle, fmtDate, today } from "../lib/ui";
 
 export default function Weight() {
   const [entries, setEntries] = useStored("weight-log", []);
   const [val, setVal] = useState("");
+  const [entryDate, setEntryDate] = useState(today());
   const [range, setRange] = useState(90);
+  const [showDate, setShowDate] = useState(false);
 
   const sorted = [...entries].sort((a, b) => (a.date > b.date ? 1 : -1));
+  const last = sorted[sorted.length - 1];
 
+  useEffect(() => {
+    if (val === "" && last) setVal(String(last.weight));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [last?.date]);
+
+  const unchanged = last && val !== "" && Number(val) === last.weight;
+
+  // One reading per day: logging the same date again replaces it rather than
+  // creating a duplicate the chart would have to guess between.
   const add = () => {
-    if (!val) return;
-    setEntries([...entries.filter((e) => e.date !== today()), { date: today(), weight: Number(val) }]);
+    if (!val || !entryDate) return;
+    setEntries([...entries.filter((e) => e.date !== entryDate), { date: entryDate, weight: Number(val) }]);
     setVal("");
+    setEntryDate(today());
   };
 
   // Daily weight is noisy enough that the raw line alone invites reading
@@ -32,7 +45,7 @@ export default function Weight() {
   const cutoff = new Date(Date.now() - range * 864e5).toISOString().slice(0, 10);
   const chartData = range === 0 ? withTrend : withTrend.filter((d) => d.date >= cutoff);
 
-  const latest = sorted[sorted.length - 1];
+  const latest = last;
   const delta = (days) => {
     if (!latest) return null;
     const c = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
@@ -55,9 +68,47 @@ export default function Weight() {
     <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
       <Card>
         <div style={{ display: "flex", gap: 8 }}>
-          <NumInput placeholder="Weight today (kg)" value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+          <NumInput
+            placeholder="Weight (kg)"
+            value={val}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => setVal(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+          />
           <Btn onClick={add}>Log</Btn>
         </div>
+
+        {/* Backdating is the exception, so it stays out of the way until asked
+            for — but opens itself if a non-today date is already set. */}
+        {showDate || entryDate !== today() ? (
+          <>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+              <input
+                type="date"
+                value={entryDate}
+                max={today()}
+                onChange={(e) => e.target.value && setEntryDate(e.target.value)}
+                style={{ ...inputStyle, width: "auto", flex: 1, fontSize: 14, colorScheme: "dark" }}
+              />
+              {entryDate !== today() && (
+                <Btn variant="ghost" onClick={() => setEntryDate(today())} style={{ fontSize: 12.5, padding: "9px 11px" }}>
+                  Today
+                </Btn>
+              )}
+            </div>
+            {entryDate !== today() && entries.some((e) => e.date === entryDate) && (
+              <div style={{ fontSize: 11.5, color: C.warn, marginTop: 8 }}>Replaces the existing {fmtDate(entryDate)} reading</div>
+            )}
+          </>
+        ) : (
+          <div onClick={() => setShowDate(true)} style={{ fontSize: 12, color: C.faint, marginTop: 10, cursor: "pointer" }}>
+            + Another day
+          </div>
+        )}
+
+        {unchanged && entryDate === today() && (
+          <div style={{ fontSize: 11.5, color: C.dim, marginTop: 8 }}>Same as {fmtDate(last.date)} — edit if you've changed</div>
+        )}
       </Card>
 
       {latest && (
@@ -116,7 +167,7 @@ export default function Weight() {
       )}
 
       <div>
-        <SectionTitle>All entries</SectionTitle>
+        <SectionTitle>History</SectionTitle>
         {[...sorted].reverse().map((e) => (
           <div key={e.date} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.line}`, fontSize: 14 }}>
             <span style={{ color: C.dim }}>{fmtDate(e.date)}</span>
