@@ -6,6 +6,11 @@
     <meta name="theme-color" content="#14161A" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- Browsers pick the first format they understand. SVG scales cleanly on
+         high-DPI screens; the PNG is the fallback for anything that can't. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Tracker</title>
     <style>
       html, body, #root { height: 100%; margin: 0; background: #14161A; }

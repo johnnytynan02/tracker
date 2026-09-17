@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#5EA8A0"/>
+  <!-- Upward trend line. Deliberately chunky: at 16px in a bookmark bar,
+       thin strokes disappear entirely. -->
+  <path d="M13 44 L26 31 L36 39 L51 20"
+        fill="none" stroke="#12211F" stroke-width="7"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="51" cy="20" r="5.5" fill="#12211F"/>
+</svg>
