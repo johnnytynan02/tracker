@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Trash2 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 import { useStored } from "../lib/useStored";
-import { C, MONO, Card, SectionTitle, Empty, Btn, NumInput, inputStyle, fmtDate, today } from "../lib/ui";
+import { C, MONO, Card, SectionTitle, Empty, Btn, NumInput, ChoiceRow, inputStyle, fmtDate, today } from "../lib/ui";
 
 export default function Weight() {
   const [entries, setEntries] = useStored("weight-log", []);
@@ -125,24 +125,13 @@ export default function Weight() {
 
       {chartData.length >= 2 ? (
         <Card style={{ padding: "14px 6px 8px 0" }}>
-          <div style={{ display: "flex", gap: 6, padding: "0 10px 12px 14px" }}>
-            {[[30, "30d"], [90, "90d"], [365, "1y"], [0, "All"]].map(([d, l]) => (
-              <div
-                key={l}
-                onClick={() => setRange(d)}
-                style={{
-                  fontSize: 12,
-                  padding: "5px 11px",
-                  borderRadius: 14,
-                  cursor: "pointer",
-                  background: range === d ? C.accent : "transparent",
-                  color: range === d ? "#0E1210" : C.dim,
-                  border: `1px solid ${range === d ? C.accent : C.line}`,
-                }}
-              >
-                {l}
-              </div>
-            ))}
+          <div style={{ padding: "0 10px 12px 14px" }}>
+            <ChoiceRow
+              options={[30, 90, 365, 0]}
+              value={range}
+              onChange={setRange}
+              labelFor={(d) => ({ 30: "30d", 90: "90d", 365: "1y", 0: "All" }[d])}
+            />
           </div>
           <div style={{ height: 240 }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -156,7 +145,7 @@ export default function Weight() {
                   formatter={(v, n) => [`${v} kg`, n === "trend" ? "7-day average" : "Logged"]}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v) => <span style={{ color: C.dim }}>{v === "trend" ? "7-day average" : "Logged"}</span>} />
-                <Line type="monotone" dataKey="weight" stroke={C.faint} strokeWidth={1} dot={{ r: 2, fill: C.faint }} />
+                <Line type="monotone" dataKey="weight" stroke={C.cool} strokeWidth={1} dot={{ r: 1.8, fill: C.cool }} opacity={0.55} />
                 <Line type="monotone" dataKey="trend" stroke={C.accent} strokeWidth={2.5} dot={false} />
               </LineChart>
             </ResponsiveContainer>

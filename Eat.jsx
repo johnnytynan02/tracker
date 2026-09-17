@@ -1,7 +1,7 @@
 import React, { useState, lazy, Suspense } from "react";
 import { Trash2, X, Pencil, Search, ScanLine, Camera, Plus, Check, UtensilsCrossed, ChevronLeft, ChevronRight } from "lucide-react";
 import { useStored } from "../lib/useStored";
-import { C, MONO, Card, SectionTitle, Empty, Btn, NumInput, TextInput, ErrorNote, Hint, MacroRow, uid, today, fmtDate } from "../lib/ui";
+import { C, MONO, R, Card, SectionTitle, Empty, Btn, NumInput, TextInput, ErrorNote, Hint, MacroRow, ChoiceRow, uid, today, fmtDate } from "../lib/ui";
 import { lookupBarcode, searchFoods, scale } from "../lib/food";
 import { MEAL_SLOTS, slotForNow, addDays } from "../lib/schema";
 
@@ -58,7 +58,7 @@ function FoodFinder({ onResolve, onCancel, primaryLabel, secondaryLabel }) {
 
   if (scanning)
     return (
-      <Suspense fallback={<div style={{ position: "fixed", inset: 0, background: "#000", color: C.dim, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>Starting camera…</div>}>
+      <Suspense fallback={<div style={{ position: "fixed", inset: 0, background: C.bg, color: C.dim, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>Starting camera…</div>}>
         <Scanner onDetected={handleBarcode} onClose={() => setScanning(false)} />
       </Suspense>
     );
@@ -243,7 +243,7 @@ export default function Eat() {
             <SectionTitle>Your foods</SectionTitle>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {library.map((f) => (
-                <div key={f.id} onClick={() => setMealDraft({ ...mealDraft, items: [...mealDraft.items, { name: f.name, per100: f.per100, grams: f.grams }] })} style={{ padding: "7px 11px", borderRadius: 18, fontSize: 12.5, cursor: "pointer", background: C.input, color: "#C7CBD1", border: `1px solid ${C.line}` }}>
+                <div key={f.id} onClick={() => setMealDraft({ ...mealDraft, items: [...mealDraft.items, { name: f.name, per100: f.per100, grams: f.grams }] })} style={{ padding: "7px 11px", borderRadius: R.chip, fontSize: 12.5, cursor: "pointer", background: C.input, color: C.dim, border: `1px solid ${C.line}` }}>
                   <Plus size={11} style={{ verticalAlign: -1, marginRight: 3 }} />{f.name}
                 </div>
               ))}
@@ -303,15 +303,7 @@ export default function Eat() {
         </Card>
       )}
 
-      <div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {MEAL_SLOTS.map((s) => (
-            <div key={s} onClick={() => setSlot(s)} style={{ flex: 1, textAlign: "center", padding: "9px 4px", borderRadius: 8, fontSize: 12.5, cursor: "pointer", background: slot === s ? C.accent : C.input, color: slot === s ? "#0E1210" : C.dim, border: `1px solid ${slot === s ? C.accent : C.line}`, fontWeight: slot === s ? 600 : 400 }}>
-              {s}
-            </div>
-          ))}
-        </div>
-      </div>
+      <ChoiceRow options={MEAL_SLOTS} value={slot} onChange={setSlot} />
 
       <div>
         <SectionTitle>Meals</SectionTitle>
@@ -329,8 +321,8 @@ export default function Eat() {
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
                   <Pencil size={15} color={C.faint} style={{ cursor: "pointer" }} onClick={() => setMealDraft({ ...meal, items: [...meal.items] })} />
-                  <div onClick={() => logMeal(meal)} style={{ width: 36, height: 36, borderRadius: 8, background: C.accent, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                    <Check size={18} color="#0E1210" />
+                  <div onClick={() => logMeal(meal)} style={{ width: 36, height: 36, borderRadius: R.control, background: C.accent, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                    <Check size={18} color={C.ink} />
                   </div>
                 </div>
               </Card>
@@ -351,7 +343,7 @@ export default function Eat() {
             {library.map((m) => {
               const macros = scale(m.per100, m.grams);
               return (
-                <div key={m.id} onClick={() => logFood(m)} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: 12, cursor: "pointer", position: "relative" }}>
+                <div key={m.id} onClick={() => logFood(m)} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: R.card, padding: 12, cursor: "pointer", position: "relative" }}>
                   <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 4, paddingRight: 32, lineHeight: 1.3 }}>{m.name}</div>
                   <div style={{ fontSize: 11.5, color: C.dim, fontFamily: MONO }}>{m.grams}g · {Math.round(macros.calories)} kcal</div>
                   <div style={{ fontSize: 11.5, color: C.faint, fontFamily: MONO, marginTop: 2 }}>P{Math.round(macros.protein)} C{Math.round(macros.carbs)} F{Math.round(macros.fat)}</div>

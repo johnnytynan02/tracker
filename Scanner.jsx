@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import { X } from "lucide-react";
-import { C, Btn, ErrorNote } from "./ui";
+import { C, Btn, ErrorNote, R } from "./ui";
 
 // Camera barcode scanning.
 //
@@ -63,7 +63,7 @@ export default function Scanner({ onDetected, onClose }) {
   }, [onDetected]);
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "#000", zIndex: 100, display: "flex", flexDirection: "column" }}>
+    <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 100, display: "flex", flexDirection: "column" }}>
       <div style={{ position: "relative", flex: 1, overflow: "hidden" }}>
         <video ref={videoRef} playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         {/* Aiming guide — a wide, short window matching the shape of a retail barcode */}
@@ -76,11 +76,11 @@ export default function Scanner({ onDetected, onClose }) {
             height: 130,
             transform: "translateY(-50%)",
             border: `2px solid ${C.accent}`,
-            borderRadius: 12,
-            boxShadow: "0 0 0 100vmax rgba(0,0,0,0.5)",
+            borderRadius: R.card,
+            boxShadow: "0 0 0 100vmax rgba(10,11,13,0.62)",
           }}
         />
-        <div style={{ position: "absolute", bottom: 28, left: 0, right: 0, textAlign: "center", color: "#fff", fontSize: 13, textShadow: "0 1px 3px #000" }}>
+        <div style={{ position: "absolute", bottom: 28, left: 0, right: 0, textAlign: "center", color: C.text, fontSize: 13, textShadow: "0 1px 3px rgba(0,0,0,0.9)" }}>
           Point at the barcode
         </div>
       </div>

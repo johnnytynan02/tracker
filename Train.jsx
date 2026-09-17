@@ -154,8 +154,8 @@ export default function Train() {
                   {spec.fields.map((f) => (
                     <NumInput key={f.key} value={s[f.key] ?? ""} placeholder="0" onChange={(e) => updSet(ex.id, s.id, { [f.key]: e.target.value })} />
                   ))}
-                  <div onClick={() => updSet(ex.id, s.id, { done: !s.done })} style={{ height: 34, borderRadius: 6, background: s.done ? C.accent : C.input, border: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                    {s.done && <Check size={15} color="#0E1210" />}
+                  <div onClick={() => updSet(ex.id, s.id, { done: !s.done })} style={{ height: 34, borderRadius: R.control, background: s.done ? C.accent : C.input, border: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                    {s.done && <Check size={15} color={C.ink} />}
                   </div>
                   <Trash2 size={14} color={C.faint} style={{ cursor: "pointer" }} onClick={() => rmSet(ex.id, s.id)} />
                 </div>
@@ -223,7 +223,7 @@ export default function Train() {
                 <span style={{ fontSize: 12, color: C.dim }}>{fmtDate(w.date)}</span>
               </div>
               {w.exercises.map((ex) => (
-                <div key={ex.id} style={{ fontSize: 13, color: "#C7CBD1", marginBottom: 3, lineHeight: 1.45 }}>
+                <div key={ex.id} style={{ fontSize: 13, color: C.dim, marginBottom: 3, lineHeight: 1.45 }}>
                   <span style={{ color: C.dim }}>{ex.name}: </span>
                   {KINDS[ex.kind].summarise(ex.sets)}
                 </div>
@@ -260,28 +260,7 @@ function ExercisePicker({ known, onAdd }) {
         <Btn onClick={submit}><Plus size={15} /></Btn>
       </div>
       {!match && (
-        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-          {KIND_IDS.map((k) => (
-            <div
-              key={k}
-              onClick={() => setKind(k)}
-              style={{
-                flex: 1,
-                textAlign: "center",
-                padding: "7px 4px",
-                borderRadius: 7,
-                fontSize: 12,
-                cursor: "pointer",
-                background: kind === k ? C.accent : C.input,
-                color: kind === k ? "#0E1210" : C.dim,
-                border: `1px solid ${kind === k ? C.accent : C.line}`,
-                fontWeight: kind === k ? 600 : 400,
-              }}
-            >
-              {KINDS[k].label}
-            </div>
-          ))}
-        </div>
+        <ChoiceRow options={KIND_IDS} value={kind} onChange={setKind} labelFor={(k) => KINDS[k].label} style={{ marginTop: 8 }} />
       )}
       {match && <div style={{ fontSize: 11.5, color: C.faint, marginTop: 7 }}>Logging as {KINDS[match.kind].label.toLowerCase()}</div>}
     </div>

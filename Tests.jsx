@@ -85,7 +85,7 @@ export default function Tests() {
                     <XAxis dataKey="label" stroke={C.dim} fontSize={10} tickLine={false} minTickGap={20} />
                     <YAxis stroke={C.dim} fontSize={10} tickLine={false} width={34} />
                     <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 13 }} formatter={(v) => [`${v} ${m.unit}`, m.name]} />
-                    <Line type="monotone" dataKey="value" stroke={C.accent} strokeWidth={2.5} dot={{ r: 2.5, fill: C.accent }} />
+                    <Line type="monotone" dataKey="value" stroke={C.accent} strokeWidth={2} dot={{ r: 2.5, fill: C.accent }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
