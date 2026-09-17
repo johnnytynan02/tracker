@@ -1,16 +1,25 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Trash2 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 import { useStored } from "../lib/useStored";
-import { C, MONO, Card, SectionTitle, Empty, Btn, NumInput, inputStyle, fmtDate, today } from "../lib/ui";
+import { C, MONO, Card, SectionTitle, Empty, Btn, NumInput, ChoiceRow, inputStyle, fmtDate, today } from "../lib/ui";
 
 export default function Weight() {
   const [entries, setEntries] = useStored("weight-log", []);
   const [val, setVal] = useState("");
   const [entryDate, setEntryDate] = useState(today());
   const [range, setRange] = useState(90);
+  const [showDate, setShowDate] = useState(false);
 
   const sorted = [...entries].sort((a, b) => (a.date > b.date ? 1 : -1));
+  const last = sorted[sorted.length - 1];
+
+  useEffect(() => {
+    if (val === "" && last) setVal(String(last.weight));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [last?.date]);
+
+  const unchanged = last && val !== "" && Number(val) === last.weight;
 
   // One reading per day: logging the same date again replaces it rather than
   // creating a duplicate the chart would have to guess between.
@@ -36,7 +45,7 @@ export default function Weight() {
   const cutoff = new Date(Date.now() - range * 864e5).toISOString().slice(0, 10);
   const chartData = range === 0 ? withTrend : withTrend.filter((d) => d.date >= cutoff);
 
-  const latest = sorted[sorted.length - 1];
+  const latest = last;
   const delta = (days) => {
     if (!latest) return null;
     const c = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
@@ -59,27 +68,46 @@ export default function Weight() {
     <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
       <Card>
         <div style={{ display: "flex", gap: 8 }}>
-          <NumInput placeholder="Weight (kg)" value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+          <NumInput
+            placeholder="Weight (kg)"
+            value={val}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => setVal(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+          />
           <Btn onClick={add}>Log</Btn>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
-          <input
-            type="date"
-            value={entryDate}
-            max={today()}
-            onChange={(e) => e.target.value && setEntryDate(e.target.value)}
-            style={{ ...inputStyle, width: "auto", flex: 1, fontSize: 14, colorScheme: "dark" }}
-          />
-          {entryDate !== today() && (
-            <Btn variant="ghost" onClick={() => setEntryDate(today())} style={{ fontSize: 12.5, padding: "9px 11px" }}>
-              Today
-            </Btn>
-          )}
-        </div>
-        {entryDate !== today() && (
-          <div style={{ fontSize: 11.5, color: C.dim, marginTop: 8 }}>
-            Backfilling {fmtDate(entryDate)}{entries.some((e) => e.date === entryDate) ? " — this will replace the existing reading" : ""}.
+
+        {/* Backdating is the exception, so it stays out of the way until asked
+            for — but opens itself if a non-today date is already set. */}
+        {showDate || entryDate !== today() ? (
+          <>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+              <input
+                type="date"
+                value={entryDate}
+                max={today()}
+                onChange={(e) => e.target.value && setEntryDate(e.target.value)}
+                style={{ ...inputStyle, width: "auto", flex: 1, fontSize: 14, colorScheme: "dark" }}
+              />
+              {entryDate !== today() && (
+                <Btn variant="ghost" onClick={() => setEntryDate(today())} style={{ fontSize: 12.5, padding: "9px 11px" }}>
+                  Today
+                </Btn>
+              )}
+            </div>
+            {entryDate !== today() && entries.some((e) => e.date === entryDate) && (
+              <div style={{ fontSize: 11.5, color: C.warn, marginTop: 8 }}>Replaces the existing {fmtDate(entryDate)} reading</div>
+            )}
+          </>
+        ) : (
+          <div onClick={() => setShowDate(true)} style={{ fontSize: 12, color: C.faint, marginTop: 10, cursor: "pointer" }}>
+            + Another day
           </div>
+        )}
+
+        {unchanged && entryDate === today() && (
+          <div style={{ fontSize: 11.5, color: C.dim, marginTop: 8 }}>Same as {fmtDate(last.date)} — edit if you've changed</div>
         )}
       </Card>
 
@@ -97,24 +125,13 @@ export default function Weight() {
 
       {chartData.length >= 2 ? (
         <Card style={{ padding: "14px 6px 8px 0" }}>
-          <div style={{ display: "flex", gap: 6, padding: "0 10px 12px 14px" }}>
-            {[[30, "30d"], [90, "90d"], [365, "1y"], [0, "All"]].map(([d, l]) => (
-              <div
-                key={l}
-                onClick={() => setRange(d)}
-                style={{
-                  fontSize: 12,
-                  padding: "5px 11px",
-                  borderRadius: 14,
-                  cursor: "pointer",
-                  background: range === d ? C.accent : "transparent",
-                  color: range === d ? "#0E1210" : C.dim,
-                  border: `1px solid ${range === d ? C.accent : C.line}`,
-                }}
-              >
-                {l}
-              </div>
-            ))}
+          <div style={{ padding: "0 10px 12px 14px" }}>
+            <ChoiceRow
+              options={[30, 90, 365, 0]}
+              value={range}
+              onChange={setRange}
+              labelFor={(d) => ({ 30: "30d", 90: "90d", 365: "1y", 0: "All" }[d])}
+            />
           </div>
           <div style={{ height: 240 }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -128,7 +145,7 @@ export default function Weight() {
                   formatter={(v, n) => [`${v} kg`, n === "trend" ? "7-day average" : "Logged"]}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v) => <span style={{ color: C.dim }}>{v === "trend" ? "7-day average" : "Logged"}</span>} />
-                <Line type="monotone" dataKey="weight" stroke={C.faint} strokeWidth={1} dot={{ r: 2, fill: C.faint }} />
+                <Line type="monotone" dataKey="weight" stroke={C.cool} strokeWidth={1} dot={{ r: 1.8, fill: C.cool }} opacity={0.55} />
                 <Line type="monotone" dataKey="trend" stroke={C.accent} strokeWidth={2.5} dot={false} />
               </LineChart>
             </ResponsiveContainer>
@@ -139,7 +156,7 @@ export default function Weight() {
       )}
 
       <div>
-        <SectionTitle>All entries</SectionTitle>
+        <SectionTitle>History</SectionTitle>
         {[...sorted].reverse().map((e) => (
           <div key={e.date} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.line}`, fontSize: 14 }}>
             <span style={{ color: C.dim }}>{fmtDate(e.date)}</span>

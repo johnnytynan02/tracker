@@ -10,6 +10,17 @@ export default function Tests() {
   const [nm, setNm] = useState({ name: "", unit: "" });
   const [logging, setLogging] = useState(null);
   const [tmp, setTmp] = useState("");
+  const [showNew, setShowNew] = useState(false);
+
+  const entriesFor = (id) => entries.filter((e) => e.metricId === id).sort((a, b) => (a.date > b.date ? 1 : -1));
+
+  // Mobility and similar tests move in small increments, so start from the
+  // last value and let the person adjust rather than retyping it.
+  const startLogging = (m) => {
+    const mine = entriesFor(m.id);
+    setTmp(mine.length ? String(mine[mine.length - 1].value) : "");
+    setLogging(m.id);
+  };
 
   const commit = (m) => {
     if (tmp === "") return;
@@ -23,7 +34,7 @@ export default function Tests() {
       {metrics.length === 0 && <Empty text="No test metrics yet — add one below, e.g. Ankle mobility in cm." />}
 
       {metrics.map((m) => {
-        const mine = entries.filter((e) => e.metricId === m.id).sort((a, b) => (a.date > b.date ? 1 : -1));
+        const mine = entriesFor(m.id);
         const latest = mine[mine.length - 1];
         const first = mine[0];
         const data = mine.map((e) => ({ label: fmtDate(e.date), value: e.value }));
@@ -44,19 +55,13 @@ export default function Tests() {
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                 {logging === m.id ? (
                   <>
-                    <NumInput autoFocus value={tmp} style={{ width: 70 }} onChange={(e) => setTmp(e.target.value)} onKeyDown={(e) => e.key === "Enter" && commit(m)} />
+                    <NumInput autoFocus value={tmp} style={{ width: 70 }} onFocus={(e) => e.target.select()} onChange={(e) => setTmp(e.target.value)} onKeyDown={(e) => e.key === "Enter" && commit(m)} />
                     <Btn onClick={() => commit(m)}>
                       <Check size={14} />
                     </Btn>
                   </>
                 ) : (
-                  <Btn
-                    variant="ghost"
-                    onClick={() => {
-                      setLogging(m.id);
-                      setTmp("");
-                    }}
-                  >
+                  <Btn variant="ghost" onClick={() => startLogging(m)}>
                     <Plus size={14} />
                     Log
                   </Btn>
@@ -80,7 +85,7 @@ export default function Tests() {
                     <XAxis dataKey="label" stroke={C.dim} fontSize={10} tickLine={false} minTickGap={20} />
                     <YAxis stroke={C.dim} fontSize={10} tickLine={false} width={34} />
                     <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 13 }} formatter={(v) => [`${v} ${m.unit}`, m.name]} />
-                    <Line type="monotone" dataKey="value" stroke={C.accent} strokeWidth={2.5} dot={{ r: 2.5, fill: C.accent }} />
+                    <Line type="monotone" dataKey="value" stroke={C.accent} strokeWidth={2} dot={{ r: 2.5, fill: C.accent }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -89,8 +94,13 @@ export default function Tests() {
         );
       })}
 
+      {!showNew && metrics.length > 0 ? (
+        <div onClick={() => setShowNew(true)} style={{ fontSize: 12.5, color: C.faint, cursor: "pointer", padding: "2px 0" }}>
+          + New metric
+        </div>
+      ) : (
       <Card>
-        <SectionTitle>New test metric</SectionTitle>
+        <SectionTitle>New metric</SectionTitle>
         <div style={{ display: "flex", gap: 8 }}>
           <TextInput placeholder="Name — e.g. Ankle mobility" value={nm.name} onChange={(e) => setNm({ ...nm, name: e.target.value })} />
           <TextInput placeholder="Unit" style={{ width: 76, flexShrink: 0 }} value={nm.unit} onChange={(e) => setNm({ ...nm, unit: e.target.value })} />
@@ -99,6 +109,7 @@ export default function Tests() {
               if (nm.name.trim()) {
                 setMetrics([...metrics, { id: uid(), name: nm.name.trim(), unit: nm.unit.trim() }]);
                 setNm({ name: "", unit: "" });
+                setShowNew(false);
               }
             }}
           >
@@ -106,6 +117,7 @@ export default function Tests() {
           </Btn>
         </div>
       </Card>
+      )}
     </div>
   );
 }

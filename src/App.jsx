@@ -1,6 +1,6 @@
 import React, { useState, lazy, Suspense } from "react";
 import { Dumbbell, Utensils, Scale, Activity, Ruler, Settings as Cog } from "lucide-react";
-import { C } from "./lib/ui";
+import { C, DISPLAY, R } from "./lib/ui";
 import { useSession, SignIn, SyncBadge } from "./lib/auth";
 import { DataProvider, useData } from "./lib/DataProvider";
 import { isConfigured } from "./lib/supabase";
@@ -47,10 +47,10 @@ function Shell({ session }) {
   const Content = active.Component;
 
   return (
-    <div style={{ background: C.bg, minHeight: "100dvh", color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", display: "flex", flexDirection: "column" }}>
+    <div style={{ background: C.bg, minHeight: "100dvh", color: C.text, fontFamily: "Archivo, system-ui, -apple-system, sans-serif", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "max(18px, env(safe-area-inset-top)) 16px 6px", maxWidth: 520, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-          <span style={{ fontSize: 19, fontWeight: 700, letterSpacing: -0.3 }}>{active.label}</span>
+          <span style={{ fontFamily: DISPLAY, fontSize: 19, letterSpacing: 0.3, textTransform: "uppercase" }}>{active.label}</span>
           <SyncBadge status={status} />
         </div>
       </div>
@@ -61,7 +61,7 @@ function Shell({ session }) {
         </Suspense>
       </div>
 
-      <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#1A1D22", borderTop: `1px solid ${C.line}`, display: "flex", justifyContent: "space-around", padding: "8px 0 max(8px, env(safe-area-inset-bottom))" }}>
+      <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.card, borderTop: `1px solid ${C.line}`, display: "flex", justifyContent: "space-around", padding: "8px 0 max(8px, env(safe-area-inset-bottom))" }}>
         {TABS.map((t) => {
           const Icon = t.icon;
           const on = tab === t.id;

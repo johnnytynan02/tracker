@@ -137,14 +137,11 @@ export default function Train() {
           return (
             <Card key={ex.id}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <div style={{ fontWeight: 600 }}>
-                  {ex.name}
-                  <span style={{ color: C.faint, fontSize: 11.5, marginLeft: 7, fontWeight: 400 }}>{spec.label}</span>
-                </div>
+                <div style={{ fontWeight: 600 }}>{ex.name}</div>
                 <Trash2 size={15} color={C.faint} style={{ cursor: "pointer" }} onClick={() => setDraft({ ...draft, exercises: draft.exercises.filter((e) => e.id !== ex.id) })} />
               </div>
               <div style={{ fontSize: 12, color: ex.last ? C.dim : C.faint, marginBottom: 10, lineHeight: 1.45 }}>
-                {ex.last ? `Last (${fmtDate(ex.last.date)}): ${KINDS[ex.last.kind || ex.kind].summarise(ex.last.sets)}` : "First time — no previous data"}
+                {ex.last ? `Last (${fmtDate(ex.last.date)}): ${KINDS[ex.last.kind || ex.kind].summarise(ex.last.sets)}` : "No previous data"}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: cols, gap: 6, fontSize: 10.5, color: C.faint, marginBottom: 5 }}>
                 <span>#</span>
@@ -157,8 +154,8 @@ export default function Train() {
                   {spec.fields.map((f) => (
                     <NumInput key={f.key} value={s[f.key] ?? ""} placeholder="0" onChange={(e) => updSet(ex.id, s.id, { [f.key]: e.target.value })} />
                   ))}
-                  <div onClick={() => updSet(ex.id, s.id, { done: !s.done })} style={{ height: 34, borderRadius: 6, background: s.done ? C.accent : C.input, border: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                    {s.done && <Check size={15} color="#0E1210" />}
+                  <div onClick={() => updSet(ex.id, s.id, { done: !s.done })} style={{ height: 34, borderRadius: R.control, background: s.done ? C.accent : C.input, border: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                    {s.done && <Check size={15} color={C.ink} />}
                   </div>
                   <Trash2 size={14} color={C.faint} style={{ cursor: "pointer" }} onClick={() => rmSet(ex.id, s.id)} />
                 </div>
@@ -191,7 +188,7 @@ export default function Train() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div>
-        <SectionTitle>Routines — tap to start</SectionTitle>
+        <SectionTitle>Routines</SectionTitle>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {routines.map((r) => (
             <Card key={r.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 13 }}>
@@ -226,7 +223,7 @@ export default function Train() {
                 <span style={{ fontSize: 12, color: C.dim }}>{fmtDate(w.date)}</span>
               </div>
               {w.exercises.map((ex) => (
-                <div key={ex.id} style={{ fontSize: 13, color: "#C7CBD1", marginBottom: 3, lineHeight: 1.45 }}>
+                <div key={ex.id} style={{ fontSize: 13, color: C.dim, marginBottom: 3, lineHeight: 1.45 }}>
                   <span style={{ color: C.dim }}>{ex.name}: </span>
                   {KINDS[ex.kind].summarise(ex.sets)}
                 </div>
@@ -263,30 +260,9 @@ function ExercisePicker({ known, onAdd }) {
         <Btn onClick={submit}><Plus size={15} /></Btn>
       </div>
       {!match && (
-        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-          {KIND_IDS.map((k) => (
-            <div
-              key={k}
-              onClick={() => setKind(k)}
-              style={{
-                flex: 1,
-                textAlign: "center",
-                padding: "7px 4px",
-                borderRadius: 7,
-                fontSize: 12,
-                cursor: "pointer",
-                background: kind === k ? C.accent : C.input,
-                color: kind === k ? "#0E1210" : C.dim,
-                border: `1px solid ${kind === k ? C.accent : C.line}`,
-                fontWeight: kind === k ? 600 : 400,
-              }}
-            >
-              {KINDS[k].label}
-            </div>
-          ))}
-        </div>
+        <ChoiceRow options={KIND_IDS} value={kind} onChange={setKind} labelFor={(k) => KINDS[k].label} style={{ marginTop: 8 }} />
       )}
-      {match && <div style={{ fontSize: 11.5, color: C.faint, marginTop: 7 }}>Known exercise — logging as {KINDS[match.kind].label.toLowerCase()}.</div>}
+      {match && <div style={{ fontSize: 11.5, color: C.faint, marginTop: 7 }}>Logging as {KINDS[match.kind].label.toLowerCase()}</div>}
     </div>
   );
 }

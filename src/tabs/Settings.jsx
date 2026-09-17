@@ -1,14 +1,20 @@
 import React, { useRef, useState } from "react";
-import { Download, Upload, Table, LogOut } from "lucide-react";
-import { C, MONO, Card, SectionTitle, Btn, Hint, ErrorNote } from "../lib/ui";
+import { Download, Upload, Table, LogOut, ClipboardPaste } from "lucide-react";
+import { C, MONO, Card, SectionTitle, Btn, Hint, ErrorNote, inputStyle } from "../lib/ui";
 import { exportAll, importAll } from "../lib/storage";
 import { tableToCSV, tableSummary, download } from "../lib/csv";
 import { signOut, isConfigured } from "../lib/supabase";
 import { useData } from "../lib/DataProvider";
+import { useStored } from "../lib/useStored";
+import { uid } from "../lib/ui";
 
 export default function Settings({ session }) {
   const { status } = useData();
+  const [library, setLibrary] = useStored("food-library", []);
   const fileRef = useRef(null);
+  const [paste, setPaste] = useState("");
+  const [importMsg, setImportMsg] = useState("");
+  const [importErr, setImportErr] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const tables = tableSummary();
@@ -95,6 +101,66 @@ export default function Settings({ session }) {
         <Hint>
           In DuckDB: <span style={{ fontFamily: MONO, color: C.dim }}>SELECT * FROM 'workout_sets-{stamp}.csv'</span> — it reads the file directly, no import step.
         </Hint>
+      </Card>
+
+      <Card>
+        <SectionTitle>Import foods</SectionTitle>
+        <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.6, marginBottom: 11 }}>
+          Paste a list of foods to add to your library. This only ever adds — nothing existing is changed or removed, and anything whose name you already have is skipped.
+        </div>
+        <textarea
+          value={paste}
+          onChange={(e) => setPaste(e.target.value)}
+          rows={4}
+          placeholder='[{"name":"Olive oil","per100":{"calories":899,"protein":0,"carbs":0,"fat":100},"grams":10}]'
+          style={{ ...inputStyle, fontFamily: MONO, fontSize: 12, resize: "vertical" }}
+        />
+        <Btn
+          disabled={!paste.trim()}
+          style={{ width: "100%", marginTop: 10 }}
+          onClick={() => {
+            setImportErr("");
+            setImportMsg("");
+            try {
+              const parsed = JSON.parse(paste);
+              const list = Array.isArray(parsed) ? parsed : parsed.foods;
+              if (!Array.isArray(list)) throw new Error("Expected a list of foods.");
+              const have = new Set(library.map((f) => f.name.toLowerCase().trim()));
+              const clean = [];
+              let skipped = 0;
+              list.forEach((f) => {
+                const name = String(f?.name || "").trim();
+                const p = f?.per100;
+                if (!name || !p) return;
+                if (have.has(name.toLowerCase())) { skipped++; return; }
+                have.add(name.toLowerCase());
+                clean.push({
+                  id: uid(),
+                  name,
+                  per100: {
+                    calories: Number(p.calories) || 0,
+                    protein: Number(p.protein) || 0,
+                    carbs: Number(p.carbs) || 0,
+                    fat: Number(p.fat) || 0,
+                  },
+                  grams: Number(f.grams) || 100,
+                  source: f.source || "Imported",
+                });
+              });
+              if (clean.length === 0 && skipped === 0) throw new Error("Nothing usable in there — each food needs a name and per100 values.");
+              setLibrary([...library, ...clean]);
+              setPaste("");
+              setImportMsg(`Added ${clean.length} food${clean.length === 1 ? "" : "s"}${skipped ? `, skipped ${skipped} you already had` : ""}.`);
+            } catch (e) {
+              setImportErr(e.message || "Couldn't read that.");
+            }
+          }}
+        >
+          <ClipboardPaste size={15} />Add to my foods
+        </Btn>
+        {importMsg && <div style={{ color: C.accent, fontSize: 12.5, marginTop: 10 }}>{importMsg}</div>}
+        <ErrorNote>{importErr}</ErrorNote>
+        <Hint>Every imported food keeps per-100g values, so changing the portion later still gives correct macros.</Hint>
       </Card>
 
       <Card>
